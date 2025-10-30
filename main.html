@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Main — Ecommerce Recommendation System</title>
+
+  <!-- Bootstrap 4.5 + Font Awesome -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+
+  <style>
+    :root{
+      --primary:#0d6efd;
+      --muted:#6b7280;
+      --card-shadow: 0 8px 24px rgba(11,20,40,0.06);
+    }
+
+    html,body { height:100%; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto, "Helvetica Neue", Arial; background: linear-gradient(180deg,#f7f9fc 0%, #eef3fb 100%); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+
+    /* fixed navbar */
+    .navbar {
+      background: linear-gradient(90deg, rgba(255,255,255,0.95), rgba(255,255,255,0.9));
+      box-shadow: 0 6px 18px rgba(11,20,40,0.06);
+      padding:.6rem 1rem;
+    }
+    .navbar-brand { font-weight:700; color:var(--primary); }
+    .nav-link { color:#495057; }
+    .nav-link:hover { color:var(--primary) !important; }
+
+    /* layout */
+    main { padding-top: 78px; } /* space for fixed navbar */
+    .search-wrapper {
+      max-width: 980px;
+      margin: 22px auto;
+      position: relative;
+      background: rgba(255,255,255,0.9);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: var(--card-shadow);
+    }
+
+    .filters { display:flex; gap:8px; align-items:center; margin:10px 0 6px; flex-wrap:wrap; }
+    .filters .ml-auto { margin-left:auto !important; }
+
+    /* suggestions dropdown */
+    .suggestions {
+      position: absolute;
+      top: calc(100% + 10px);
+      left: 0;
+      right: 0;
+      z-index: 9999;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(8,15,30,0.08);
+      max-height: 360px;
+      overflow: auto;
+      display: none;
+    }
+    .suggestion-item { padding: 10px 12px; cursor: pointer; display:flex; align-items:center; gap:12px; }
+    .suggestion-item:hover, .suggestion-item.active { background: #f1f5f9; }
+    .no-suggestions { padding: 10px 12px; color: var(--muted); }
+    .pname { font-weight:600; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:520px; }
+    .meta { color:var(--muted); font-size:0.9rem; margin-top:3px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .thumb { width:56px; height:56px; object-fit:cover; border-radius:6px; flex:0 0 56px; background:#f1f5f9; }
+
+    .suggestion-body { flex:1; min-width:0; } /* allow truncation */
+    .rating { color: #d97706; font-weight:600; margin-right:6px; }
+    .small-muted { font-size:0.85rem; color:var(--muted); }
+
+    .suggestion-footer { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-top:1px solid #f3f4f6; background:#fbfbfb; }
+    .pager-btn { cursor:pointer; }
+
+    /* recommendation cards */
+    .rec-card {
+      border-radius:12px;
+      overflow:hidden;
+      border: none;
+      box-shadow: var(--card-shadow);
+      transition: transform .14s ease, box-shadow .14s ease;
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,250,252,0.96));
+    }
+    .rec-card:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(11,20,40,0.12); }
+    .rec-card .card-img-top { height:180px; object-fit:cover; }
+
+    @media (max-width:576px){
+      .thumb { width:46px; height:46px; }
+      .pname { max-width:200px; }
+      .search-wrapper { margin:12px; padding:12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar (consistent with index.html) -->
+<nav class="navbar navbar-expand-lg navbar-light fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="/">Ecom360</a>
+
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavMain"
+            aria-controls="navbarNavMain" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarNavMain">
+      <ul class="navbar-nav mr-auto">
+        <li class="nav-item {% if request.path == '/' %}active{% endif %}"><a class="nav-link" href="/"><i class="fas fa-home"></i> Home</a></li>
+        <li class="nav-item {% if request.path == '/main' %}active{% endif %}"><a class="nav-link" href="/main"><i class="fas fa-th-large"></i> Main</a></li>
+        <li class="nav-item {% if request.path == '/dashboard' %}active{% endif %}"><a class="nav-link" href="/dashboard"><i class="fas fa-chart-line"></i> Dashboard</a></li>
+      </ul>
+
+      <form class="form-inline my-2 my-lg-0 mr-2" action="/search" method="get" style="flex:0 0 auto;">
+        <input class="form-control form-control-sm" name="q" type="search" placeholder="Search products..." aria-label="Search">
+        <button class="btn btn-sm btn-outline-primary ml-2" type="submit"><i class="fas fa-search"></i></button>
+      </form>
+
+      <ul class="navbar-nav align-items-center">
+        <li class="nav-item mr-2"><a class="nav-link btn btn-outline-primary" href="#" data-toggle="modal" data-target="#signupModal">Sign Up</a></li>
+        <li class="nav-item"><a class="nav-link btn btn-primary text-white" href="#" data-toggle="modal" data-target="#signinModal">Sign In</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <div class="container">
+    <div class="search-wrapper">
+      <form id="searchForm" action="/recommendations" method="post" style="display:flex; gap:10px; align-items:center;">
+        <div style="flex:1; position:relative;">
+          <input id="prodInput" name="prod" type="text" class="form-control" placeholder="Search for products..." autocomplete="off" />
+
+          <!-- filters area sits under the input but inside wrapper -->
+          <div class="filters mt-2">
+            <select id="categorySelect" class="form-control" style="width:220px;">
+              <option value="">All categories</option>
+            </select>
+
+            <label class="mb-0 d-flex align-items-center" style="gap:8px;">
+              <input id="min4" type="checkbox" /> <span style="font-size:0.9rem;">Only ≥ 4★</span>
+            </label>
+
+            <div class="ml-auto small-muted" id="suggestMeta" style="margin-left:8px;">&nbsp;</div>
+          </div>
+
+          <div id="suggestions" class="suggestions" aria-hidden="true"></div>
+        </div>
+
+        <input id="nbrInput" name="nbr" type="number" class="form-control" placeholder="No. of products" style="width:140px;">
+        <button class="btn btn-primary">Search</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- optional message area -->
+  <div class="container">
+    {% if message %}
+      <div class="alert alert-info">{{ message }}</div>
+    {% endif %}
+  </div>
+
+  <!-- recommendations rendering (unchanged logic but styled) -->
+  {% if content_based_rec is defined and not content_based_rec.empty %}
+  <div class="container mt-4">
+    <h4>Recommendations</h4>
+    <div class="row">
+      {% for index, product in content_based_rec.iterrows() %}
+      <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card rec-card">
+          <img src="{{ product['ImageURL'] }}" class="card-img-top" alt="{{ product['Name'] }}">
+          <div class="card-body">
+            <h6 class="card-title mb-1" title="{{ product['Name'] }}">{{ truncate(product['Name'], 30) }}</h6>
+            <p class="mb-0"><small>Brand: {{ product['Brand'] }}</small></p>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</main>
+
+<!-- Sign Up Modal (kept functional) -->
+<div class="modal fade" id="signupModal" tabindex="-1" role="dialog" aria-labelledby="signupModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="signupModalLabel">Sign Up</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <form action="/signup" method="post" autocomplete="off">
+          <div class="form-group"><label for="username">Username</label><input required type="text" class="form-control" id="username" name="username" /></div>
+          <div class="form-group"><label for="email">Email</label><input required type="email" class="form-control" id="email" name="email" /></div>
+          <div class="form-group"><label for="password">Password</label><input required type="password" class="form-control" id="password" name="password" /></div>
+          <div class="text-right"><button type="submit" class="btn btn-primary">Sign Up</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sign In Modal -->
+<div class="modal fade" id="signinModal" tabindex="-1" role="dialog" aria-labelledby="signinModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="signinModalLabel">Sign In</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <form action="/signin" method="post" autocomplete="off">
+          <div class="form-group"><label for="signinUsername">Username</label><input required type="text" class="form-control" id="signinUsername" name="signinUsername" /></div>
+          <div class="form-group"><label for="signinPassword">Password</label><input required type="password" class="form-control" id="signinPassword" name="signinPassword" /></div>
+          <div class="text-right"><button type="submit" class="btn btn-primary">Sign In</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- scripts -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+/*
+  Autocomplete JS preserved from original file; adjusted only for visual integration.
+  Endpoints used:
+    - GET /api/categories
+    - GET /api/products?page=&per_page=&category=&min_rating=&q=
+    - POST /recommendations (form submit)
+*/
+
+(async function(){
+  const suggestionsEl = document.getElementById('suggestions');
+  const input = document.getElementById('prodInput');
+  const form = document.getElementById('searchForm');
+  const nbrInput = document.getElementById('nbrInput');
+  const categorySelect = document.getElementById('categorySelect');
+  const min4Checkbox = document.getElementById('min4');
+  const suggestMeta = document.getElementById('suggestMeta');
+
+  let page = 1;
+  const per_page = 8; // suggestions per page
+  let total = 0;
+  let visibleItems = [];
+  let highlighted = -1;
+
+  const PLACEHOLDER_SVG = "data:image/svg+xml;utf8," +
+    "<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56'>" +
+    "<rect width='100%' height='100%' fill='%23e5e7eb'/>" +
+    "</svg>";
+
+  function esc(s){ return String(s||'').replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+
+  function renderSuggestions(data){
+    suggestionsEl.innerHTML = '';
+    highlighted = -1;
+    if(!data || !Array.isArray(data.records) || data.records.length === 0){
+      suggestionsEl.style.display = 'none';
+      suggestMeta.innerText = '';
+      return;
+    }
+    visibleItems = data.records;
+    total = data.total || 0;
+    // list items
+    for(let i=0;i<visibleItems.length;i++){
+      const item = visibleItems[i];
+      const img = item.image || PLACEHOLDER_SVG;
+      const avg = (item.avg_rating !== undefined && item.avg_rating !== null) ? item.avg_rating : 'N/A';
+      const rc = item.review_count !== undefined ? item.review_count : 0;
+      const cat = item.category || 'Uncategorized';
+
+      const div = document.createElement('div');
+      div.className = 'suggestion-item';
+      div.tabIndex = 0;
+      div.dataset.index = i;
+      div.innerHTML = `
+        <img src="${esc(img)}" class="thumb" alt="thumb" />
+        <div class="suggestion-body">
+          <span class="pname">${esc(item.name || item.id)}</span>
+          <div class="meta">
+             <span class="small-muted">${esc(cat)}</span>
+             &nbsp;·&nbsp;
+             <span class="rating">★ ${esc(avg)}</span>
+             <span class="small-muted">· ${esc(rc)} reviews</span>
+          </div>
+        </div>
+      `.trim();
+
+      div.addEventListener('click', ()=> { selectItem(i, true); });
+      div.addEventListener('mouseenter', ()=> setHighlight(i));
+      suggestionsEl.appendChild(div);
+    }
+
+    // footer with pager
+    const footer = document.createElement('div');
+    footer.className = 'suggestion-footer';
+    const left = document.createElement('div');
+    left.innerHTML = `<small class="small-muted">Showing ${((page-1)*per_page)+1}–${Math.min(page*per_page, total)} of ${total}</small>`;
+    const right = document.createElement('div');
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'btn btn-sm btn-light pager-btn';
+    prevBtn.innerText = 'Prev';
+    prevBtn.disabled = page <= 1;
+    prevBtn.addEventListener('click', (e)=> { e.stopPropagation(); if(page>1){ page--; fetchAndRender(); } });
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'btn btn-sm btn-light pager-btn ml-2';
+    nextBtn.innerText = 'Next';
+    nextBtn.disabled = (page*per_page) >= total;
+    nextBtn.addEventListener('click', (e)=> { e.stopPropagation(); if((page*per_page) < total){ page++; fetchAndRender(); } });
+
+    right.appendChild(prevBtn);
+    right.appendChild(nextBtn);
+    footer.appendChild(left);
+    footer.appendChild(right);
+    suggestionsEl.appendChild(footer);
+
+    suggestionsEl.style.display = 'block';
+    suggestMeta.innerText = `${total} results`;
+  }
+
+  function hideSuggestions(){
+    suggestionsEl.style.display = 'none';
+    highlighted = -1;
+  }
+
+  function setHighlight(index){
+    const items = suggestionsEl.querySelectorAll('.suggestion-item');
+    items.forEach((it, idx) => it.classList.toggle('active', idx === index));
+    highlighted = index;
+  }
+
+  function selectItem(index, autoSubmit=false){
+    if(index<0 || index>=visibleItems.length) return;
+    const p = visibleItems[index];
+    input.value = p.name || p.id || '';
+    hideSuggestions();
+    if(autoSubmit){
+      if(!nbrInput.value) nbrInput.value = 5;
+      form.submit();
+    }
+  }
+
+  // keyboard handling
+  input.addEventListener('keydown', function(e){
+    const items = suggestionsEl.querySelectorAll('.suggestion-item');
+    if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      if(items.length === 0) return;
+      let nxt = (highlighted + 1) % items.length;
+      setHighlight(nxt);
+      items[nxt].scrollIntoView({block:'nearest'});
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      if(items.length === 0) return;
+      let prev = (highlighted - 1 + items.length) % items.length;
+      setHighlight(prev);
+      items[prev].scrollIntoView({block:'nearest'});
+    } else if(e.key === 'Enter'){
+      if(suggestionsEl.style.display === 'block' && highlighted >=0){
+        e.preventDefault();
+        selectItem(highlighted, true);
+      }
+    } else if(e.key === 'Escape'){
+      hideSuggestions();
+    }
+  });
+
+  document.addEventListener('click', function(ev){
+    if(!document.querySelector('.search-wrapper').contains(ev.target)){
+      hideSuggestions();
+    }
+  });
+
+  // fetch categories to populate categorySelect
+  async function loadCategories(){
+    try {
+      const res = await fetch('/api/categories');
+      if(!res.ok) throw new Error('status ' + res.status);
+      const cats = await res.json();
+      if(Array.isArray(cats)){
+        cats.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c;
+          opt.innerText = c;
+          categorySelect.appendChild(opt);
+        });
+      }
+    } catch(err){
+      console.warn('Could not load categories', err);
+    }
+  }
+
+  // core fetch function for server-side suggestions
+  async function fetchAndRender(){
+    const q = input.value.trim();
+    const cat = categorySelect.value;
+    const min_rating = min4Checkbox.checked ? 4 : null;
+
+    const params = new URLSearchParams();
+    params.append('page', String(page));
+    params.append('per_page', String(per_page));
+    if(min_rating) params.append('min_rating', String(min_rating));
+    if(cat) params.append('category', cat);
+    if(q) params.append('q', q);
+
+    try {
+      const res = await fetch('/api/products?' + params.toString());
+      if(!res.ok) throw new Error('status ' + res.status);
+      const data = await res.json();
+      if(Array.isArray(data)){
+        renderSuggestions({ records: data, total: data.length });
+      } else {
+        renderSuggestions(data);
+      }
+    } catch(err){
+      console.warn('fetch suggestions error', err);
+      renderSuggestions({ records: [], total: 0 });
+    }
+  }
+
+  // input handlers to trigger search (server-side)
+  let debounceTimer = null;
+  function scheduleFetch(resetPage=true){
+    if(resetPage) page = 1;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => { fetchAndRender(); }, 220);
+  }
+
+  input.addEventListener('input', ()=> scheduleFetch(true));
+  input.addEventListener('focus', ()=> scheduleFetch(false));
+  categorySelect.addEventListener('change', ()=> scheduleFetch(true));
+  min4Checkbox.addEventListener('change', ()=> scheduleFetch(true));
+
+  // initial load
+  await loadCategories();
+  scheduleFetch(true);
+
+})();
+</script>
+
+</body>
+</html>

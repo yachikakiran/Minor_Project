@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — Ecommerce Recommendation System</title>
+
+  <!-- Bootstrap 4.5 + Chart.js + Font Awesome -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --primary:#0d6efd;
+      --muted:#6b7280;
+      --card-shadow: 0 12px 30px rgba(11,20,40,0.06);
+    }
+
+    html,body { height:100%; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto, "Helvetica Neue", Arial; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; background: linear-gradient(180deg,#f7f9fc 0%, #eef3fb 100%); color:#212529; }
+
+    /* Navbar */
+    .navbar {
+      background: linear-gradient(90deg, rgba(255,255,255,0.95), rgba(255,255,255,0.9));
+      box-shadow: 0 6px 18px rgba(11,20,40,0.06);
+      padding:.6rem 1rem;
+    }
+    .navbar-brand { font-weight:700; color:var(--primary); }
+
+    /* Page layout */
+    .container-cards { max-width:1200px; margin:92px auto 48px; } /* room for fixed navbar */
+    h4 { margin:0; font-weight:700; }
+
+    .card {
+      border-radius:12px;
+      border:none;
+      box-shadow: var(--card-shadow);
+      transition: transform .12s ease, box-shadow .12s ease;
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,250,252,0.98));
+    }
+    .card:hover { transform: translateY(-6px); }
+
+    .chart-wrap { padding:16px; min-height:250px; }
+    .chart-wrap h6 { margin-bottom:12px; font-weight:700; font-size:1rem; }
+
+    #productsTable tbody tr { cursor:pointer; transition: background .12s ease; }
+    #productsTable tbody tr:hover { background: #fbfbff; }
+
+    .reviews-box { max-height:420px; overflow:auto; background:#fff; padding:12px; border-radius:10px; border:1px solid #eef2ff; box-shadow:none; }
+    .thumb-td img{ width:56px; height:56px; object-fit:cover; border-radius:8px; }
+
+    .spinner-overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.7); z-index:1500; border-radius:0; }
+    .toast-container{ position:fixed; top:18px; right:18px; z-index:1600; }
+
+    .table-sm td, .table-sm th{ vertical-align:middle; }
+    .product-modal-img{ width:100%; height:340px; object-fit:cover; border-radius:8px; }
+
+    .filters-inline .form-control { min-width:170px; }
+    .btn-compact { padding: .38rem .6rem; font-size:.9rem; border-radius:8px; }
+
+    @media (max-width:992px){
+      .container-cards { margin-top:86px; padding: 0 12px; }
+      .product-modal-img { height:220px; }
+      .thumb-td img { width:48px; height:48px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar (consistent with other pages) -->
+<nav class="navbar navbar-expand-lg navbar-light fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="/">Ecom360</a>
+
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarDash"
+            aria-controls="navbarDash" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarDash">
+      <ul class="navbar-nav mr-auto">
+        <li class="nav-item"><a class="nav-link" href="/"><i class="fas fa-home"></i> Home</a></li>
+        <li class="nav-item"><a class="nav-link" href="/main"><i class="fas fa-th-large"></i> Main</a></li>
+        <li class="nav-item active"><a class="nav-link" href="/dashboard"><i class="fas fa-chart-line"></i> Dashboard</a></li>
+      </ul>
+
+      <form class="form-inline my-2 my-lg-0 mr-2" action="/search" method="get" style="flex:0 0 auto;">
+        <input class="form-control form-control-sm" name="q" type="search" placeholder="Search products..." aria-label="Search">
+        <button class="btn btn-sm btn-outline-primary ml-2" type="submit"><i class="fas fa-search"></i></button>
+      </form>
+
+      <ul class="navbar-nav align-items-center">
+        <li class="nav-item mr-2"><a class="nav-link btn btn-outline-primary btn-compact" href="#" data-toggle="modal" data-target="#signupModal">Sign Up</a></li>
+        <li class="nav-item"><a class="nav-link btn btn-primary btn-compact text-white" href="#" data-toggle="modal" data-target="#signinModal">Sign In</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Main container -->
+<div class="container container-cards">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4><i class="fas fa-chart-area mr-2"></i> Analytics</h4>
+    <div>
+      <button id="refreshBtn" class="btn btn-outline-primary btn-compact"><i class="fas fa-sync-alt"></i> Refresh dataset</button>
+      <a href="/main" class="btn btn-primary btn-compact ml-2"><i class="fas fa-arrow-left"></i> Back to Main</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-7 mb-3">
+      <div class="card chart-wrap">
+        <h6>Average Rating by Category</h6>
+        <canvas id="catRatingChart" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="col-lg-5 mb-3">
+      <div class="card chart-wrap">
+        <h6>Top 10 Most Reviewed Products</h6>
+        <canvas id="topReviewedChart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-3">
+    <div class="col-lg-7 mb-3">
+      <div class="card p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 style="margin:0">Products (click a row to view reviews)</h6>
+          <div class="form-inline filters-inline">
+            <select id="catFilter" class="form-control form-control-sm mr-2"><option value="">All categories</option></select>
+            <select id="ratingFilter" class="form-control form-control-sm"><option value="">All ratings</option><option value="4">Rating ≥ 4</option><option value="4.5">Rating ≥ 4.5</option></select>
+          </div>
+        </div>
+
+        <div class="table-responsive" style="max-height:360px; overflow:auto;">
+          <table class="table table-hover table-sm" id="productsTable">
+            <thead class="thead-light">
+              <tr>
+                <th style="width:72px"></th>
+                <th style="width:48px">#</th>
+                <th>Product</th>
+                <th>Category</th>
+                <th style="width:120px">Avg Rating</th>
+                <th style="width:90px">Reviews</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <small id="productsCount" class="text-muted"></small>
+          <div>
+            <button id="prevPage" class="btn btn-sm btn-outline-secondary">Prev</button>
+            <button id="nextPage" class="btn btn-sm btn-outline-secondary">Next</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5 mb-3">
+      <div class="card p-3">
+        <h6>Recent Reviews</h6>
+        <div id="reviewsArea" class="reviews-box">
+          <p class="small text-muted">Select a product to load reviews.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4 small text-muted text-center">
+    Note: Charts use precomputed aggregates from your dataset. Click "Refresh dataset" if you uploaded or changed the TSV file.
+  </div>
+</div>
+
+<!-- Product modal -->
+<div class="modal fade" id="productModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="modalTitle" class="modal-title">Product</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <img id="modalImage" class="product-modal-img mb-3" src="" alt="product" />
+        <div id="modalMeta"></div>
+        <hr />
+        <div id="modalReviews" style="max-height:250px; overflow:auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sign Up Modal (consistent, unchanged functionality) -->
+<div class="modal fade" id="signupModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Sign Up</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
+      <div class="modal-body">
+        <form action="/signup" method="post" autocomplete="off">
+          <div class="form-group"><label>Username</label><input required class="form-control" name="username"/></div>
+          <div class="form-group"><label>Email</label><input required type="email" class="form-control" name="email"/></div>
+          <div class="form-group"><label>Password</label><input required type="password" class="form-control" name="password"/></div>
+          <div class="text-right"><button class="btn btn-primary">Sign Up</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sign In Modal -->
+<div class="modal fade" id="signinModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Sign In</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
+      <div class="modal-body">
+        <form action="/signin" method="post" autocomplete="off">
+          <div class="form-group"><label>Username</label><input required class="form-control" name="signinUsername"/></div>
+          <div class="form-group"><label>Password</label><input required type="password" class="form-control" name="signinPassword"/></div>
+          <div class="text-right"><button class="btn btn-primary">Sign In</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- spinner overlay -->
+<div id="spinnerOverlay" class="spinner-overlay" style="display:none">
+  <div class="text-center">
+    <div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div>
+    <div class="mt-2 text-muted">Loading…</div>
+  </div>
+</div>
+
+<!-- toast container -->
+<div class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+<!-- scripts -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+(async function(){
+  // Elements
+  const refreshBtn = document.getElementById('refreshBtn');
+  const catCtx = document.getElementById('catRatingChart').getContext('2d');
+  const topCtx = document.getElementById('topReviewedChart').getContext('2d');
+  const productsTbody = document.querySelector('#productsTable tbody');
+  const reviewsArea = document.getElementById('reviewsArea');
+  const spinner = document.getElementById('spinnerOverlay');
+  const catFilter = document.getElementById('catFilter');
+  const ratingFilter = document.getElementById('ratingFilter');
+  const productsCount = document.getElementById('productsCount');
+  const prevPage = document.getElementById('prevPage');
+  const nextPage = document.getElementById('nextPage');
+
+  let catChart = null, topChart = null;
+  let currentPage = 1, perPage = 25, lastTotal = 0;
+
+  function showSpinner(){ spinner.style.display = 'flex'; }
+  function hideSpinner(){ spinner.style.display = 'none'; }
+
+  function toast(message, title='Info'){
+    const id = 't'+Date.now();
+    const html = `\n      <div id="${id}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-delay="3500">\n        <div class="toast-header">\n          <strong class="mr-auto">${title}</strong>\n          <small class="text-muted">now</small>\n          <button type="button" class="ml-2 mb-1 close" data-dismiss="toast">&times;</button>\n        </div>\n        <div class="toast-body">${message}</div>\n      </div>\n    `;
+    const container = document.querySelector('.toast-container');
+    container.insertAdjacentHTML('beforeend', html);
+    $('#'+id).toast('show').on('hidden.bs.toast', function(){ this.remove(); });
+  }
+
+  async function apiGet(path){
+    const res = await fetch(path);
+    if(!res.ok) throw new Error('status ' + res.status);
+    return await res.json();
+  }
+
+  async function loadCategoryRatings(){
+    try{
+      const rows = await apiGet('/api/category-average-ratings');
+      const labels = rows.map(r => r.category);
+      const values = rows.map(r => parseFloat(r.avg_rating || 0));
+      if(catChart) catChart.destroy();
+      catChart = new Chart(catCtx, {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Avg Rating', data: values, borderRadius: 6, backgroundColor: 'rgba(54,162,235,0.85)' }] },
+        options: { responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, suggestedMax:5 } } }
+      });
+    }catch(err){ console.error('cat ratings load error', err); if(catChart) catChart.destroy(); catChart = null; }
+  }
+
+  async function loadTopReviewed(){
+    try{
+      const rows = await apiGet('/api/top-reviewed?n=10');
+      const labels = rows.map(r => (r.name || r.id).slice(0,40));
+      const values = rows.map(r => parseInt(r.review_count || 0));
+      if(topChart) topChart.destroy();
+      topChart = new Chart(topCtx, {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Review Count', data: values, borderRadius:6, backgroundColor:'rgba(255,159,64,0.95)'}] },
+        options: { indexAxis:'y', responsive:true, plugins:{ legend:{ display:false } }, scales:{ x:{ beginAtZero:true } } }
+      });
+    }catch(err){ console.error('top reviewed load error', err); if(topChart) topChart.destroy(); topChart = null; }
+  }
+
+  // Load products page and populate filters
+  async function loadProductsList(page=1){
+    showSpinner();
+    try{
+      const cat = catFilter.value || '';
+      const min_rating = ratingFilter.value || '';
+      const url = `/api/products?page=${page}&per_page=${perPage}` + (min_rating? `&min_rating=${min_rating}`:'') + (cat? `&category=${encodeURIComponent(cat)}`:'');
+      const data = await apiGet(url);
+      const rows = Array.isArray(data) ? data : (data.records || []);
+      productsTbody.innerHTML = '';
+      rows.forEach((r, idx)=>{
+        const tr = document.createElement('tr');
+        tr.dataset.productId = r.id;
+        const img = r.image ? `<img src="${escapeHtml(r.image)}" alt="thumb"/>` : '';
+        tr.innerHTML = `\n          <td class="thumb-td">${img}</td>\n          <td>${(page-1)*perPage + idx + 1}</td>\n          <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(r.name||r.id)}</td>\n          <td>${escapeHtml(r.category||'Uncategorized')}</td>\n          <td>${r.avg_rating !== null ? r.avg_rating : 'N/A'}</td>\n          <td>${r.review_count || 0}</td>\n        `;
+        tr.addEventListener('click', ()=> showProductModal(r));
+        productsTbody.appendChild(tr);
+      });
+      lastTotal = data.total || rows.length;
+      productsCount.innerText = `${Math.min(lastTotal, (page-1)*perPage + rows.length)} of ${lastTotal} products`;
+      currentPage = page;
+      // populate categories filter if empty
+      if(catFilter.options.length <= 1){
+        try{
+          const cats = await apiGet('/api/categories');
+          cats.forEach(c => { const opt = document.createElement('option'); opt.value = c; opt.innerText = c; catFilter.appendChild(opt); });
+        }catch(e){ /*ignore*/ }
+      }
+    }catch(err){ console.error('loadProductsList error', err); productsTbody.innerHTML = '<tr><td colspan="6" class="text-muted">Could not load products.</td></tr>'; }
+    finally{ hideSpinner(); }
+  }
+
+  async function loadReviewsFor(productId, productName){
+    reviewsArea.innerHTML = '<p class="small text-muted">Loading reviews...</p>';
+    try{
+      const rows = await apiGet(`/api/reviews?product_id=${encodeURIComponent(productId)}&per_page=30&page=1`);
+      if(Array.isArray(rows) && rows.length>0){ renderReviews(rows, productName); return; }
+      const rows2 = await apiGet(`/api/reviews?product_name=${encodeURIComponent(productName||'')}&per_page=30&page=1`);
+      if(Array.isArray(rows2) && rows2.length>0){ renderReviews(rows2, productName); return; }
+      reviewsArea.innerHTML = '<p class="small text-muted">No reviews found for this product.</p>';
+    }catch(err){ console.error('loadReviewsFor error', err); reviewsArea.innerHTML = '<p class="small text-muted">Error loading reviews.</p>'; }
+  }
+
+  function renderReviews(rows, productName){
+    const list = document.createElement('div');
+    list.innerHTML = `<h6 style=\"margin-top:0\">${escapeHtml(productName||'Reviews')}</h6>`;
+    rows.forEach(r => {
+      const card = document.createElement('div');
+      card.style.marginBottom = '10px';
+      card.innerHTML = `\n        <div><strong>${escapeHtml(r.product_name||r.productName||'')}</strong> <small class=\"text-muted\"> — ${r.rating !== null ? '★ ' + r.rating : ''}</small></div>\n        <div style=\"font-size:0.95rem;\">${escapeHtml(String(r.review||'').slice(0,400))}${(String(r.review||'').length>400 ? '...' : '')}</div>\n        <hr style=\"margin:8px 0;\">\n      `;
+      list.appendChild(card);
+    });
+    reviewsArea.innerHTML = '';
+    reviewsArea.appendChild(list);
+  }
+
+  async function showProductModal(record){
+    document.getElementById('modalTitle').innerText = record.name || record.id;
+    const imgEl = document.getElementById('modalImage');
+    imgEl.src = record.image || '/static/img_1.png';
+    document.getElementById('modalMeta').innerHTML = `<p><strong>Category:</strong> ${escapeHtml(record.category||'Uncategorized')} · <strong>Avg:</strong> ${record.avg_rating !== null ? record.avg_rating : 'N/A'} · <strong>Reviews:</strong> ${record.review_count || 0}</p>`;
+    $('#productModal').modal('show');
+    try{
+      const rows = await apiGet(`/api/reviews?product_id=${encodeURIComponent(record.id)}&per_page=10&page=1`);
+      const container = document.getElementById('modalReviews');
+      container.innerHTML = '';
+      if(Array.isArray(rows) && rows.length>0){
+        rows.forEach(r => { const p = document.createElement('p'); p.innerHTML = `<small class=\"text-muted\">${escapeHtml(r.rating!==null? '★ '+r.rating : '')}</small><br>${escapeHtml((r.review||'').slice(0,250))}`; container.appendChild(p); });
+      } else { container.innerHTML = '<p class="small text-muted">No reviews</p>'; }
+    }catch(e){ console.error('modal reviews error', e); }
+  }
+
+  async function refreshDataset(){
+    refreshBtn.disabled = true; refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...'; showSpinner();
+    try{
+      const res = await fetch('/api/refresh', { method:'POST' });
+      const json = await res.json();
+      if(res.ok){ await Promise.all([loadCategoryRatings(), loadTopReviewed(), loadProductsList(1)]); toast('Dataset refreshed — charts updated.','Success'); }
+      else { toast('Refresh failed: ' + (json.message||'unknown'),'Error'); }
+    }catch(err){ console.error('refreshDataset error', err); toast('Refresh error: see console','Error'); }
+    finally{ refreshBtn.disabled = false; refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh dataset'; hideSpinner(); }
+  }
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>\"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+
+  // pagination handlers
+  prevPage.addEventListener('click', ()=> { if(currentPage>1){ loadProductsList(currentPage-1); } });
+  nextPage.addEventListener('click', ()=> { if((currentPage*perPage) < lastTotal){ loadProductsList(currentPage+1); } });
+
+  // filters
+  catFilter.addEventListener('change', ()=> loadProductsList(1));
+  ratingFilter.addEventListener('change', ()=> loadProductsList(1));
+
+  // init
+  await Promise.all([loadCategoryRatings(), loadTopReviewed(), loadProductsList(1)]);
+  refreshBtn.addEventListener('click', refreshDataset);
+
+})();
+</script>
+
+</body>
+</html>
